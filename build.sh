@@ -191,6 +191,64 @@ make install DESTDIR=$BASE
 touch stamp-h1
 fi
 ########### #################################################################
+###pcre#### #################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "pcre-8.41" ] && tar jxvf pcre-8.41.tar.bz2
+cd $BASE/pcre-8.41
+if [ ! -f "stamp-h1" ];then
+./configure --disable-shared --enable-utf8 --enable-unicode-properties --enable-pcre16 --with-match-limit-recursion=16000 --disable-cpp --prefix=/opt --host=$ARCHBUILD-linux && make
+#cp -rf .libs/libevent*.a $DEST/lib
+make install DESTDIR=$BASE
+touch stamp-h1
+fi
+########### #################################################################
+##mbedtls## #################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "mbedtls-2.16.3" ] && tar zxvf mbedtls-2.16.3.tgz
+cd $BASE/mbedtls-2.16.3
+if [ ! -f "stamp-h1" ];then
+CC=${CORSS_PREFIX}gcc \
+LDFLAGS=$LDFLAGS" -static" \
+CPPFLAGS=$CPPFLAGS \
+CFLAGS=$CFLAGS \
+CXXFLAGS=$CXXFLAGS \
+CROSS_PREFIX=${CORSS_PREFIX} \
+make install DESTDIR=$DEST
+touch stamp-h1
+fi
+########### #################################################################
+##c-ares### #################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "c-ares-1.14.0" ] && tar zxvf c-ares-1.14.0.tar.gz
+cd $BASE/c-ares-1.14.0
+if [ ! -f "stamp-h1" ];then
+./buildconf
+CC=${CORSS_PREFIX}gcc \
+LDFLAGS=$LDFLAGS" -static" \
+CPPFLAGS=$CPPFLAGS \
+CFLAGS="-g0 -O2 -Wno-system-headers " \
+CXXFLAGS=$CXXFLAGS \
+CROSS_PREFIX=${CORSS_PREFIX} \
+./configure --prefix=/opt --host=$ARCHBUILD-linux --enable-shared=no --enable-static=yes
+make install DESTDIR=$BASE
+touch stamp-h1
+fi
+########### #################################################################
+#libsodium# #################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "libsodium-1.0.16" ] && tar zxvf libsodium-1.0.16.tar.gz
+cd $BASE/libsodium-1.0.16
+if [ ! -f "stamp-h1" ];then
+./configure --disable-shared --disable-ssp --prefix=/opt --host=$ARCHBUILD-linux && make
+#cp -rf .libs/libevent*.a $DEST/lib
+make install DESTDIR=$BASE
+touch stamp-h1
+fi
+########### #################################################################
 #  PDNSD  # #################################################################
 ########### #################################################################
 cd $BASE
@@ -332,8 +390,59 @@ cd $BASE
 mkdir -p bin/$ARCH
 cp $BASE/simple-obfs/src/obfs-server bin/$ARCH
 cp $BASE/simple-obfs/src/obfs-local bin/$ARCH
-
-
+########### #################################################################
+## ssr  ### #################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "shadowsocksr-libev-2.5.3" ] && tar zxvf shadowsocksr-libev-2.5.3.tar.gz
+cd $BASE/shadowsocksr-libev-2.5.3
+if [ ! -e patched ]
+then
+	for f in "../sspatches/"*.patch ; do
+		patch -p1 < "$f"
+	done
+	touch patched
+fi
+./autogen.sh
+CC=${CORSS_PREFIX}gcc \
+CPPFLAGS=$CPPFLAGS \
+CFLAGS=$CFLAGS \
+CXXFLAGS=$CXXFLAGS \
+CROSS_PREFIX=${CORSS_PREFIX} \
+LIBS="-lpthread" LDFLAGS="-Wl,-static -static -static-libgcc -lgcc -L$DEST/lib" CFLAGS="-I$DEST/include" \
+ac_cv_prog_PCRE_CONFIG="$DEST/bin/pcre-config" \
+./configure --prefix=/opt --disable-documentation --disable-ssp --disable-assert \
+	--with-crypto-library=openssl --host=$ARCHBUILD-linux
+make
+${CORSS_PREFIX}strip src/ss-local
+${CORSS_PREFIX}strip server/ss-server
+${CORSS_PREFIX}strip server/ss-check
+${CORSS_PREFIX}strip src/ss-redir
+cd $BASE
+mkdir -p bin/$ARCH
+mv $BASE/shadowsocksr-libev-2.5.3/server/ss-server bin/$ARCH/ssr-server
+mv $BASE/shadowsocksr-libev-2.5.3/src/ss-local bin/$ARCH/ssr-local
+mv $BASE/shadowsocksr-libev-2.5.3/server/ss-check bin/$ARCH/ssr-check
+mv $BASE/shadowsocksr-libev-2.5.3/src/ss-redir bin/$ARCH/ssr-redir
+########### #################################################################
+### ss  ### #################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "shadowsocks-libev-3.3.4" ] && tar zxvf shadowsocks-libev-3.3.4.tar.gz
+cd $BASE/shadowsocks-libev-3.3.4
+LIBS="-lpthread" LDFLAGS="-Wl,-static -static -static-libgcc -L$DEST/lib" CFLAGS="-I$DEST/include" \
+ac_cv_prog_PCRE_CONFIG="$DEST/bin/pcre-config" \
+./configure --prefix=/opt --disable-documentation --disable-ssp --disable-assert \
+	 --host=$ARCHBUILD-linux --with-mbedtls=$DEST --with-pcre=$DEST --with-sodium=$DEST
+make
+${CORSS_PREFIX}strip src/ss-local
+${CORSS_PREFIX}strip src/ss-server
+${CORSS_PREFIX}strip src/ss-redir
+cd $BASE
+mkdir -p bin/$ARCH
+mv $BASE/shadowsocks-libev-3.3.4/src/ss-server bin/$ARCH/ss-server
+mv $BASE/shadowsocks-libev-3.3.4/src/ss-local bin/$ARCH/ss-local
+mv $BASE/shadowsocks-libev-3.3.4/src/ss-redir bin/$ARCH/ss-redir
 ########### #################################################################
 # TROJAN  # #################################################################
 ########### #################################################################
