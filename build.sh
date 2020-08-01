@@ -179,6 +179,18 @@ make install DESTDIR=$BASE
 touch stamp-h1
 fi
 ########### #################################################################
+###LIBEV### #################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "libev-4.22" ] && tar zxvf libev-4.22.tar.gz
+cd $BASE/libev-4.22
+if [ ! -f "stamp-h1" ];then
+./configure --enable-static --disable-shared --prefix=/opt --host=$ARCHBUILD-linux && make
+#cp -rf .libs/libevent*.a $DEST/lib
+make install DESTDIR=$BASE
+touch stamp-h1
+fi
+########### #################################################################
 #  PDNSD  # #################################################################
 ########### #################################################################
 cd $BASE
@@ -253,7 +265,7 @@ cd $BASE
 mkdir -p bin/$ARCH
 cp -rf $BASE/dns2socks/dns2socks bin/$ARCH
 ########### #################################################################
-#chinadnsng# ################################################################
+#ipt2socks# #################################################################
 ########### #################################################################
 cd $BASE
 [ ! -d "ipt2socks-1.1.3" ] && tar zxvf ipt2socks-1.1.3.tar.gz
@@ -286,6 +298,41 @@ ${CORSS_PREFIX}strip httping
 cd $BASE
 mkdir -p bin/$ARCH
 cp $BASE/httping-2.5/httping bin/$ARCH
+
+########### #################################################################
+####jq##### #################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "jq" ] && tar zxvf jq.tar.gz
+cd $BASE/jq
+autoreconf -ivf
+./configure --disable-maintainer-mode --enable-all-static --prefix=/opt --host=$ARCHBUILD-linux
+make 
+${CORSS_PREFIX}strip jq
+cd $BASE
+mkdir -p bin/$ARCH
+cp $BASE/jq/jq bin/$ARCH
+
+
+########### #################################################################
+#simple-obfs ################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "simple-obfs" ] && tar zxvf simple-obfs.tar.gz
+cd $BASE/simple-obfs
+./autogen.sh
+LIBS="-lpthread -lm" \
+LDFLAGS="-Wl,-static -static -static-libgcc -L$DEST/lib" \
+CFLAGS="-I$DEST/include" \
+./configure --disable-ssp --disable-assert --disable-documentation --prefix=/opt --host=$ARCHBUILD-linux
+make 
+${CORSS_PREFIX}strip src/obfs-server
+${CORSS_PREFIX}strip src/obfs-local
+cd $BASE
+mkdir -p bin/$ARCH
+cp $BASE/simple-obfs/src/obfs-server bin/$ARCH
+cp $BASE/simple-obfs/src/obfs-local bin/$ARCH
+
 
 ########### #################################################################
 # TROJAN  # #################################################################
