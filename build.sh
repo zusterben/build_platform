@@ -4,7 +4,7 @@ set -e
 set -x
 
 #ARCH=arm64
-#ARCH=arm
+ARCH=arm
 #ARCH=mips
 #ARCH=mipsle
 PWD=`pwd`
@@ -167,31 +167,6 @@ touch stamp-h1
 fi
 
 ########### #################################################################
-# TROJAN  # #################################################################
-########### #################################################################
-
-cd $BASE
-[ ! -d "trojan-1.15.1" ] && tar zxvf trojan-1.15.1.tar.gz
-cd $BASE/trojan-1.15.1
-rm -rf CMakeFiles
-rm -rf CMakeCache.txt
-
-cp -rf ../CMakeLists.txt ./CMakeLists.txt
-export CMAKE_ROOT=$DEST/bin/cmake
-CC=${CORSS_PREFIX}gcc \
-CXX=${CORSS_PREFIX}g++ \
-LDFLAGS=$LDFLAGS" -static" \
-CPPFLAGS=$CPPFLAGS \
-CFLAGS=$CFLAGS \
-CXXFLAGS=$CXXFLAGS \
-$DEST/bin/cmake/bin/cmake -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_VERSION=1 -DCMAKE_SYSTEM_PROCESSOR=$ARCH -DCMAKE_BUILD_TYPE=Release -DCMAKE_SOURCE_DIR=$DEST/bin/cmake -DBoost_DEBUG=ON -DBoost_NO_BOOST_CMAKE=ON -DLINK_DIRECTORIES=$DEST/lib -DCMAKE_FIND_ROOT_PATH=$DEST -DBOOST_ROOT=$DEST -DBoost_INCLUDE_DIR=$DEST/include -DBoost_LIBRARY_DIRS=$DEST/lib -DBOOST_LIBRARYDIR=$DEST/lib -DOPENSSL_CRYPTO_LIBRARY=$DEST/lib -DOPENSSL_INCLUDE_DIR=$DEST/include -DOPENSSL_SSL_LIBRARY=$DEST/lib -DBoost_USE_STATIC_LIBS=TRUE -DBoost_PROGRAM_OPTIONS_LIBRARY_RELEASE=$DEST/lib -DBoost_SYSTEM_LIBRARY_RELEASE=$DEST/lib -DCMAKE_SKIP_RPATH=NO -DDEFAULT_CONFIG=/jffs/softcenter/etc/trojan.json -DCMAKE_FIND_LIBRARY_SUFFIXES=.a \
--DENABLE_MYSQL=OFF -DENABLE_NAT=ON -DENABLE_REUSE_PORT=ON -DENABLE_SSL_KEYLOG=ON -DENABLE_TLS13_CIPHERSUITES=ON -DFORCE_TCP_FASTOPEN=OFF -DSYSTEMD_SERVICE=OFF -DOPENSSL_USE_STATIC_LIBS=TRUE
-make
-${CORSS_PREFIX}strip trojan
-cd $BASE
-mkdir -p bin/$ARCH
-cp -rf $BASE/trojan-1.15.1/trojan bin/$ARCH
-########### #################################################################
 # LIBEVENT# #################################################################
 ########### #################################################################
 cd $BASE
@@ -201,6 +176,7 @@ if [ ! -f "stamp-h1" ];then
 ./configure --disable-debug-mode --disable-samples --disable-libevent-regress --prefix=/opt --host=$ARCHBUILD-linux && make
 #cp -rf .libs/libevent*.a $DEST/lib
 make install DESTDIR=$BASE
+touch stamp-h1
 fi
 ########### #################################################################
 #  PDNSD  # #################################################################
@@ -247,6 +223,8 @@ cp -rf $BASE/redsocks2-0.67/redsocks2 bin/$ARCH
 cd $BASE
 [ ! -d "microsocks" ] && tar zxvf microsocks.1.0.1.tar.gz
 cd $BASE/microsocks
+CC=${CORSS_PREFIX}gcc \
+LDFLAGS=$LDFLAGS" -static" \
 make
 ${CORSS_PREFIX}strip microsocks
 cd $BASE
@@ -258,7 +236,7 @@ cp -rf $BASE/microsocks/microsocks bin/$ARCH
 cd $BASE
 [ ! -d "chinadns-ng" ] && tar zxvf chinadns-ng.tar.gz
 cd $BASE/chinadns-ng
-make
+make CC=${CORSS_PREFIX}gcc
 ${CORSS_PREFIX}strip chinadns-ng
 cd $BASE
 mkdir -p bin/$ARCH
@@ -269,7 +247,7 @@ cp -rf $BASE/chinadns-ng/chinadns-ng bin/$ARCH
 cd $BASE
 [ ! -d "dns2socks" ] && unzip dns2socks.zip -d dns2socks
 cd $BASE/dns2socks
-${CC} ${CFLAGS} ${LDFLAGS} DNS2SOCKS/DNS2SOCKS.c -o dns2socks
+${CC} ${CFLAGS} ${LDFLAGS} -static DNS2SOCKS/DNS2SOCKS.c -o dns2socks
 ${CORSS_PREFIX}strip dns2socks
 cd $BASE
 mkdir -p bin/$ARCH
@@ -280,20 +258,57 @@ cp -rf $BASE/dns2socks/dns2socks bin/$ARCH
 cd $BASE
 [ ! -d "ipt2socks-1.1.3" ] && tar zxvf ipt2socks-1.1.3.tar.gz
 cd $BASE/ipt2socks-1.1.3
-make CC=${CORSS_PREFIX}gcc
+make CC=${CORSS_PREFIX}gcc LDFLAGS=$LDFLAGS" -static"
 ${CORSS_PREFIX}strip ipt2socks
 cd $BASE
 mkdir -p bin/$ARCH
 cp -rf $BASE/ipt2socks-1.1.3/ipt2socks bin/$ARCH
 ########### #################################################################
-####lua#### ################################################################
+####lua#### #################################################################
 ########### #################################################################
 cd $BASE
 [ ! -d "lua-5.1.5" ] && tar zxvf lua-5.1.5.tar.gz
 cd $BASE/lua-5.1.5
-make CC=${CORSS_PREFIX}gcc AR="${CORSS_PREFIX}ar" RANLIB="${CORSS_PREFIX}ranlib" INSTALL_ROOT=/opt CFLAGS="$CPPFLAGS $CFLAGS -DLUA_USE_LINUX -fPIC -std=gnu99" PKG_VERSION=-"5.1.5" MYLDFLAGS="$LDFLAGS" linux
+make CC=${CORSS_PREFIX}gcc AR="${CORSS_PREFIX}ar rcu" RANLIB="${CORSS_PREFIX}ranlib" INSTALL_ROOT=/opt CFLAGS="$CPPFLAGS $CFLAGS -DLUA_USE_LINUX -fPIC -std=gnu99 -static" PKG_VERSION=-"5.1.5" MYLDFLAGS="$LDFLAGS -static" linux
 ${CORSS_PREFIX}strip src/lua
 cd $BASE
 mkdir -p bin/$ARCH
 cp -rf $BASE/lua-5.1.5/src/lua bin/$ARCH
+########### #################################################################
+##httping## #################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "httping-2.5" ] && tar zxvf httping-2.5.tar.gz
+cd $BASE/httping-2.5
+CFLAGS="-I$DEST/include -DENABLE_HELP -static $CFLAGS" LDFLAGS="-L$DEST/lib -Wl,--gc-sections" \
+make 
+${CORSS_PREFIX}strip httping
+cd $BASE
+mkdir -p bin/$ARCH
+cp $BASE/httping-2.5/httping bin/$ARCH
 
+########### #################################################################
+# TROJAN  # #################################################################
+########### #################################################################
+
+cd $BASE
+[ ! -d "trojan-1.16.0" ] && tar zxvf trojan-1.16.0.tar.gz
+cd $BASE/trojan-1.16.0
+rm -rf CMakeFiles
+rm -rf CMakeCache.txt
+
+cp -rf ../CMakeLists.txt ./CMakeLists.txt
+export CMAKE_ROOT=$DEST/bin/cmake
+CC=${CORSS_PREFIX}gcc \
+CXX=${CORSS_PREFIX}g++ \
+LDFLAGS=$LDFLAGS" -static" \
+CPPFLAGS=$CPPFLAGS \
+CFLAGS=$CFLAGS \
+CXXFLAGS=$CXXFLAGS \
+$DEST/bin/cmake/bin/cmake -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_VERSION=1 -DCMAKE_SYSTEM_PROCESSOR=$ARCH -DCMAKE_BUILD_TYPE=Release -DCMAKE_SOURCE_DIR=$DEST/bin/cmake -DBoost_DEBUG=ON -DBoost_NO_BOOST_CMAKE=ON -DLINK_DIRECTORIES=$DEST/lib -DCMAKE_FIND_ROOT_PATH=$DEST -DBOOST_ROOT=$DEST -DBoost_INCLUDE_DIR=$DEST/include -DBoost_LIBRARY_DIRS=$DEST/lib -DBOOST_LIBRARYDIR=$DEST/lib -DOPENSSL_CRYPTO_LIBRARY=$DEST/lib -DOPENSSL_INCLUDE_DIR=$DEST/include -DOPENSSL_SSL_LIBRARY=$DEST/lib -DBoost_USE_STATIC_LIBS=TRUE -DBoost_PROGRAM_OPTIONS_LIBRARY_RELEASE=$DEST/lib -DBoost_SYSTEM_LIBRARY_RELEASE=$DEST/lib -DCMAKE_SKIP_RPATH=NO -DDEFAULT_CONFIG=/jffs/softcenter/etc/trojan.json -DCMAKE_FIND_LIBRARY_SUFFIXES=.a \
+-DENABLE_MYSQL=OFF -DENABLE_NAT=ON -DENABLE_REUSE_PORT=ON -DENABLE_SSL_KEYLOG=ON -DENABLE_TLS13_CIPHERSUITES=ON -DFORCE_TCP_FASTOPEN=OFF -DSYSTEMD_SERVICE=OFF -DOPENSSL_USE_STATIC_LIBS=TRUE
+make
+${CORSS_PREFIX}strip trojan
+cd $BASE
+mkdir -p bin/$ARCH
+cp -rf $BASE/trojan-1.16.0/trojan bin/$ARCH
