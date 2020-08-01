@@ -3,13 +3,12 @@
 set -e
 set -x
 
-ARCH=arm64
+#ARCH=arm64
 #ARCH=arm
 #ARCH=mips
 #ARCH=mipsle
 PWD=`pwd`
 #prefix asuswrt:/jffs/softcenter,openwrt:/usr
-
 if [ "$ARCH" = "arm" ];then
 #armv7l
 export CFLAGS="-I $PWD/opt/cross/arm-linux-musleabi/arm-linux-musleabi/include -Os"
@@ -57,12 +56,16 @@ CPPFLAGS="-I$DEST/include"
 CXXFLAGS="$CXXFLAGS $CFLAGS"
 if [ "$ARCH" = "arm" ];then
 CONFIGURE="linux-armv4 -Os -static --prefix=/opt zlib enable-ssl3 enable-ssl3-method enable-tls1_3 --with-zlib-lib=$DEST/lib --with-zlib-include=$DEST/include -DOPENSSL_PREFER_CHACHA_OVER_GCM enable-weak-ssl-ciphers"
+ARCHBUILD=arm
 elif [ "$ARCH" = "arm64" ];then
 CONFIGURE="linux-aarch64 -Os -static --prefix=/opt zlib enable-ssl3 enable-ssl3-method enable-tls1_3 --with-zlib-lib=$DEST/lib --with-zlib-include=$DEST/include -DOPENSSL_PREFER_CHACHA_OVER_GCM enable-weak-ssl-ciphers"
+ARCHBUILD=aarch64
 elif [ "$ARCH" = "mips" ];then
 CONFIGURE="linux-mips32 -Os -static --prefix=/opt zlib enable-ssl3 enable-ssl3-method enable-tls1_3 --with-zlib-lib=$DEST/lib --with-zlib-include=$DEST/include -DOPENSSL_PREFER_CHACHA_OVER_GCM enable-weak-ssl-ciphers"
+ARCHBUILD=mips
 elif [ "$ARCH" = "mipsle" ];then
 CONFIGURE="linux-mips32 -Os -static --prefix=/opt zlib enable-ssl3 enable-ssl3-method enable-tls1_3--with-zlib-lib=$DEST/lib --with-zlib-include=$DEST/include -DOPENSSL_PREFER_CHACHA_OVER_GCM enable-weak-ssl-ciphers"
+ARCHBUILD=mipsle
 fi
 MAKE="make"
 
@@ -188,3 +191,109 @@ ${CORSS_PREFIX}strip trojan
 cd $BASE
 mkdir -p bin/$ARCH
 cp -rf $BASE/trojan-1.15.1/trojan bin/$ARCH
+########### #################################################################
+# LIBEVENT# #################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "libevent-2.1.11-stable" ] && tar zxvf libevent-2.1.11-stable.tar.gz
+cd $BASE/libevent-2.1.11-stable
+if [ ! -f "stamp-h1" ];then
+./configure --disable-debug-mode --disable-samples --disable-libevent-regress --prefix=/opt --host=$ARCHBUILD-linux && make
+#cp -rf .libs/libevent*.a $DEST/lib
+make install DESTDIR=$BASE
+fi
+########### #################################################################
+#  PDNSD  # #################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "pdnsd-1.2.9b-par" ] && tar zxvf pdnsd-1.2.9b-par.tar.gz
+cd $BASE/pdnsd-1.2.9b-par
+CC=${CORSS_PREFIX}gcc \
+LDFLAGS=$LDFLAGS" -static" \
+CPPFLAGS=$CPPFLAGS \
+CFLAGS=$CFLAGS \
+CXXFLAGS=$CXXFLAGS \
+CROSS_PREFIX=${CORSS_PREFIX} \
+./configure --with-cachedir=/var/pdnsd --with-target=Linux --host=$ARCHBUILD-linux --with-debug=1
+make
+${CORSS_PREFIX}strip src/pdnsd
+cd $BASE
+mkdir -p bin/$ARCH
+cp -rf $BASE/pdnsd-1.2.9b-par/src/pdnsd bin/$ARCH/pdnsd
+########### #################################################################
+#redsocks2# #################################################################
+########### #################################################################
+
+cd $BASE
+[ ! -d "redsocks2-0.67" ] && tar zxvf redsocks2-0.67.tar.gz
+cd $BASE/redsocks2-0.67
+ENABLE_STATIC=y \
+DISABLE_SHADOWSOCKS=y \
+CC=${CORSS_PREFIX}gcc \
+LDFLAGS=$LDFLAGS" -static" \
+CPPFLAGS=$CPPFLAGS \
+CFLAGS=$CFLAGS \
+CXXFLAGS=$CXXFLAGS \
+CROSS_PREFIX=${CORSS_PREFIX} \
+make
+#make
+${CORSS_PREFIX}strip redsocks2
+cd $BASE
+mkdir -p bin/$ARCH
+cp -rf $BASE/redsocks2-0.67/redsocks2 bin/$ARCH
+########### #################################################################
+#microsocks# ################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "microsocks" ] && tar zxvf microsocks.1.0.1.tar.gz
+cd $BASE/microsocks
+make
+${CORSS_PREFIX}strip microsocks
+cd $BASE
+mkdir -p bin/$ARCH
+cp -rf $BASE/microsocks/microsocks bin/$ARCH
+########### #################################################################
+#chinadnsng# ################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "chinadns-ng" ] && tar zxvf chinadns-ng.tar.gz
+cd $BASE/chinadns-ng
+make
+${CORSS_PREFIX}strip chinadns-ng
+cd $BASE
+mkdir -p bin/$ARCH
+cp -rf $BASE/chinadns-ng/chinadns-ng bin/$ARCH
+########### #################################################################
+#dns2socks# #################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "dns2socks" ] && unzip dns2socks.zip -d dns2socks
+cd $BASE/dns2socks
+${CC} ${CFLAGS} ${LDFLAGS} DNS2SOCKS/DNS2SOCKS.c -o dns2socks
+${CORSS_PREFIX}strip dns2socks
+cd $BASE
+mkdir -p bin/$ARCH
+cp -rf $BASE/dns2socks/dns2socks bin/$ARCH
+########### #################################################################
+#chinadnsng# ################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "ipt2socks-1.1.3" ] && tar zxvf ipt2socks-1.1.3.tar.gz
+cd $BASE/ipt2socks-1.1.3
+make CC=${CORSS_PREFIX}gcc
+${CORSS_PREFIX}strip ipt2socks
+cd $BASE
+mkdir -p bin/$ARCH
+cp -rf $BASE/ipt2socks-1.1.3/ipt2socks bin/$ARCH
+########### #################################################################
+####lua#### ################################################################
+########### #################################################################
+cd $BASE
+[ ! -d "lua-5.1.5" ] && tar zxvf lua-5.1.5.tar.gz
+cd $BASE/lua-5.1.5
+make CC=${CORSS_PREFIX}gcc AR="${CORSS_PREFIX}ar" RANLIB="${CORSS_PREFIX}ranlib" INSTALL_ROOT=/opt CFLAGS="$CPPFLAGS $CFLAGS -DLUA_USE_LINUX -fPIC -std=gnu99" PKG_VERSION=-"5.1.5" MYLDFLAGS="$LDFLAGS" linux
+${CORSS_PREFIX}strip src/lua
+cd $BASE
+mkdir -p bin/$ARCH
+cp -rf $BASE/lua-5.1.5/src/lua bin/$ARCH
+
