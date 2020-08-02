@@ -4,9 +4,9 @@ set -e
 set -x
 
 #ARCH=arm64
-ARCH=arm
+#ARCH=arm
 #ARCH=mips
-#ARCH=mipsle
+ARCH=mipsle
 PWD=`pwd`
 #prefix asuswrt:/jffs/softcenter,openwrt:/usr
 if [ "$ARCH" = "arm" ];then
@@ -64,7 +64,7 @@ elif [ "$ARCH" = "mips" ];then
 CONFIGURE="linux-mips32 -Os -static --prefix=/opt zlib enable-ssl3 enable-ssl3-method enable-tls1_3 --with-zlib-lib=$DEST/lib --with-zlib-include=$DEST/include -DOPENSSL_PREFER_CHACHA_OVER_GCM enable-weak-ssl-ciphers"
 ARCHBUILD=mips
 elif [ "$ARCH" = "mipsle" ];then
-CONFIGURE="linux-mips32 -Os -static --prefix=/opt zlib enable-ssl3 enable-ssl3-method enable-tls1_3--with-zlib-lib=$DEST/lib --with-zlib-include=$DEST/include -DOPENSSL_PREFER_CHACHA_OVER_GCM enable-weak-ssl-ciphers"
+CONFIGURE="linux-mips32 -Os -static --prefix=/opt zlib enable-ssl3 enable-ssl3-method enable-tls1_3 --with-zlib-lib=$DEST/lib --with-zlib-include=$DEST/include -DOPENSSL_PREFER_CHACHA_OVER_GCM enable-weak-ssl-ciphers"
 ARCHBUILD=mipsle
 fi
 MAKE="make"
