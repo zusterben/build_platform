@@ -5,8 +5,8 @@ set -x
 
 #ARCH=arm64
 #ARCH=arm
-#ARCH=mips
-ARCH=mipsle
+ARCH=mips
+#ARCH=mipsle
 PWD=`pwd`
 #prefix asuswrt:/jffs/softcenter,openwrt:/usr
 if [ "$ARCH" = "arm" ];then
@@ -337,6 +337,19 @@ cp -rf $BASE/ipt2socks-1.1.3/ipt2socks bin/$ARCH
 ####lua#### #################################################################
 ########### #################################################################
 cd $BASE
+[ ! -d "lua-cjson" ] && tar zxvf lua-cjson.tar.gz
+cd $BASE/lua-cjson
+make CC=${CORSS_PREFIX}gcc AR="${CORSS_PREFIX}ar rcu" RANLIB="${CORSS_PREFIX}ranlib" INSTALL_ROOT=/opt CFLAGS="$CPPFLAGS $CFLAGS -fPIC -std=gnu99" PKG_VERSION=-"5.1.5" MYLDFLAGS="$LDFLAGS"
+${CORSS_PREFIX}strip cjson.so
+cd $BASE
+mkdir -p bin/$ARCH
+mkdir -p bin/$ARCH/cjson
+cp -rf $BASE/lua-cjson/cjson.so bin/$ARCH
+cp -rf $BASE/lua-cjson/cjson/util.lua bin/$ARCH/cjson
+########### #################################################################
+#lua-cjson# #################################################################
+########### #################################################################
+cd $BASE
 [ ! -d "lua-5.1.5" ] && tar zxvf lua-5.1.5.tar.gz
 cd $BASE/lua-5.1.5
 make CC=${CORSS_PREFIX}gcc AR="${CORSS_PREFIX}ar rcu" RANLIB="${CORSS_PREFIX}ranlib" INSTALL_ROOT=/opt CFLAGS="$CPPFLAGS $CFLAGS -DLUA_USE_LINUX -fPIC -std=gnu99 -static" PKG_VERSION=-"5.1.5" MYLDFLAGS="$LDFLAGS -static" linux
@@ -454,6 +467,7 @@ rm -rf CMakeFiles
 rm -rf CMakeCache.txt
 
 cp -rf ../CMakeLists.txt ./CMakeLists.txt
+sed -i '/Build Flags/d' src/main.cpp
 export CMAKE_ROOT=$DEST/bin/cmake
 CC=${CORSS_PREFIX}gcc \
 CXX=${CORSS_PREFIX}g++ \
