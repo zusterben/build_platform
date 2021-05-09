@@ -89,7 +89,8 @@ enum {
     NET_KCP,
     NET_WS,
     NET_H2,
-    NET_QUIC
+    NET_QUIC,
+    NET_GRPC
 };
 
 dbclient* gclient;
@@ -497,6 +498,7 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 	struct json_object *outbound_httpSettings = json_object_new_object();
 	struct json_object *outbound_quicSettings = json_object_new_object();
 	struct json_object *outbound_quicSettings_header = json_object_new_object();
+	struct json_object *outbound_grpcSettings = json_object_new_object();
 	struct json_object *mux = json_object_new_object();
 	memset(v, 0, sizeof(v));
 	skipd("ssconf_basic_node", v);
@@ -535,7 +537,10 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 		transport = NET_H2;
 	else if(!strcmp(v, "quic"))
 		transport = NET_QUIC;
-	else
+	else if(!strcmp(v, "grpc")){
+		transport = NET_GRPC;
+		tls = TLS_TLS;
+	}else
 		transport = NET_ERR;
 
 	json_object_object_add(log_item, "error", json_object_new_string("/tmp/xray.log"));
@@ -733,13 +738,25 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 		json_object_object_add(outbound_quicSettings_header, "type", json_object_new_string(v));
 		json_object_object_add(outbound_quicSettings, "header", outbound_quicSettings_header);
 		json_object_object_add(outbound_streamSettings, "quicSettings", outbound_quicSettings);
+	}else if(transport == NET_GRPC){
+		memset(v, 0, sizeof(v));
+		memset(k, 0, sizeof(k));
+		snprintf(k, sizeof(k), "ssconf_basic_v2ray_grpc_serviceName_%d", node);
+		skipd(k, v);
+		json_object_object_add(outbound_grpcSettings, "serviceName", json_object_new_string(v));
+		memset(v, 0, sizeof(v));
+		memset(k, 0, sizeof(k));
+		snprintf(k, sizeof(k), "ssconf_basic_v2ray_mux_enable_%d", node);
+		skipd(k, v);
+		json_object_object_add(outbound_grpcSettings, "multiMode", json_object_new_boolean(atoi(v)));
+		json_object_object_add(outbound_streamSettings, "grpcSettings", outbound_quicSettings);
 	}
 	json_object_object_add(outbound_item, "streamSettings", outbound_streamSettings);
 	memset(v, 0, sizeof(v));
 	memset(k, 0, sizeof(k));
 	snprintf(k, sizeof(k), "ssconf_basic_v2ray_mux_enable_%d", node);
 	skipd(k, v);
-	if(atoi(v) == 1 && tls != TLS_XTLS){
+	if(atoi(v) == 1 && tls != TLS_XTLS && transport != NET_GRPC){
 		json_object_object_add(mux, "enabled", json_object_new_boolean(1));
 		memset(v, 0, sizeof(v));
 		memset(k, 0, sizeof(k));
@@ -754,6 +771,7 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 		fclose(fp);
 	}
 	json_object_put(mux);
+	json_object_put(outbound_grpcSettings);
 	json_object_put(outbound_quicSettings_header);
 	json_object_put(outbound_quicSettings);
 	json_object_put(outbound_httpSettings);
