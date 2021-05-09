@@ -689,7 +689,6 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 			snprintf(k, sizeof(k), "ssconf_basic_password_%d", node);
 			skipd(k, v);
 			json_object_object_add(outbound_users_item, "pass", json_object_new_string(v));
-			json_object_object_add(outbound_users_item, "users", json_object_new_string("none"));
 			json_object_object_add(outbound_servers_item, "users", outbound_users_item);
 		}
 
