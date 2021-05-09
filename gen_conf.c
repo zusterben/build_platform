@@ -470,7 +470,7 @@ int gen_ss_conf(int type, int netflix, char *path, int local_port)
 int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_port, char *proto)
 {
 	char k[99], v[9999];
-	int tls, transport, protocol, node;
+	int tls, transport, node;
 	FILE *fp;
 	struct json_object *xrayjson = NULL;
 	xrayjson = json_object_new_object();
@@ -647,7 +647,7 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 		memset(k, 0, sizeof(k));
 		snprintf(k, sizeof(k), "ssconf_basic_password_%d", node);
 		skipd(k, v);
-		json_object_object_add(outbound_servers_item, "password", json_object_new_string(v));
+		json_object_object_add(outbound_servers_item, "password", json_object_new_string(base64_decode(v)));
 		if (type == TYPE_SS){
 			memset(v, 0, sizeof(v));
 			memset(k, 0, sizeof(k));
@@ -688,7 +688,7 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 			memset(k, 0, sizeof(k));
 			snprintf(k, sizeof(k), "ssconf_basic_password_%d", node);
 			skipd(k, v);
-			json_object_object_add(outbound_users_item, "pass", json_object_new_string(v));
+			json_object_object_add(outbound_users_item, "pass", json_object_new_string(base64_decode(v)));
 			json_object_object_add(outbound_servers_item, "users", outbound_users_item);
 		}
 
