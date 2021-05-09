@@ -76,7 +76,11 @@ typedef struct _dbclient {
 enum {
 	TYPE_ERR = -1,
     TYPE_VMESS = 0,
-    TYPE_VLESS
+    TYPE_VLESS,
+	TYPE_TROJAN,
+	TYPE_SS,
+	TYPE_SOCKS,
+	TYPE_HTTP
 };
 enum {
 	TLS_ERR = -1,
@@ -466,7 +470,7 @@ int gen_ss_conf(int type, int netflix, char *path, int local_port)
 int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_port, char *proto)
 {
 	char k[99], v[9999];
-	int tls, transport, node;
+	int tls, transport, protocol, node;
 	FILE *fp;
 	struct json_object *xrayjson = NULL;
 	xrayjson = json_object_new_object();
@@ -482,6 +486,8 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 	struct json_object *outbound_settings_item = json_object_new_object();
 	struct json_object *outbound_vnext_array = json_object_new_array();
 	struct json_object *outbound_vnext_item = json_object_new_object();
+	struct json_object *outbound_servers_item = json_object_new_object();
+	struct json_object *outbound_servers_array = json_object_new_array();
 	struct json_object *outbound_users_array = json_object_new_array();
 	struct json_object *outbound_users_item = json_object_new_object();
 	struct json_object *outbound_streamSettings = json_object_new_object();
@@ -503,16 +509,27 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 	memset(v, 0, sizeof(v));
 	skipd("ssconf_basic_node", v);
 	node = atoi(v);
+
 	memset(v, 0, sizeof(v));
 	memset(k, 0, sizeof(k));
-	snprintf(k, sizeof(k), "ssconf_basic_v2ray_vmessvless_%d", node);
+	snprintf(k, sizeof(k), "ssconf_basic_v2ray_protocol_%d", node);
 	skipd(k, v);
 	if(!strcmp(v, "vmess"))
 		type = TYPE_VMESS;
 	else if(!strcmp(v, "vless"))
 		type = TYPE_VLESS;
-	else
-		type = TYPE_ERR;
+	else if(!strcmp(v, "trojan"))
+		type = TYPE_TROJAN;
+	else if(!strcmp(v, "ss"))
+		type = TYPE_SS;
+	else if(!strcmp(v, "socks"))
+		type = TYPE_SOCKS;
+	else if(!strcmp(v, "http")){
+		type = TYPE_HTTP;
+	}else
+		type = NET_ERR;
+
+
 	memset(v, 0, sizeof(v));
 	memset(k, 0, sizeof(k));
 	snprintf(k, sizeof(k), "ssconf_basic_v2ray_network_security_%d", node);
@@ -569,51 +586,116 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 	}
 	memset(v, 0, sizeof(v));
 	memset(k, 0, sizeof(k));
-	snprintf(k, sizeof(k), "ssconf_basic_v2ray_vmessvless_%d", node);
+	snprintf(k, sizeof(k), "ssconf_basic_v2ray_protocol_%d", node);
 	skipd(k, v);
 	json_object_object_add(outbound_item, "protocol", json_object_new_string(v));
-	memset(v, 0, sizeof(v));
-	memset(k, 0, sizeof(k));
-	snprintf(k, sizeof(k), "ssconf_basic_server_%d", node);
-	skipd(k, v);
-	json_object_object_add(outbound_vnext_item, "address", json_object_new_string(v));
-	memset(v, 0, sizeof(v));
-	memset(k, 0, sizeof(k));
-	snprintf(k, sizeof(k), "ssconf_basic_port_%d", node);
-	skipd(k, v);
-	json_object_object_add(outbound_vnext_item, "port", json_object_new_int(atoi(v)));
-	memset(v, 0, sizeof(v));
-	memset(k, 0, sizeof(k));
-	snprintf(k, sizeof(k), "ssconf_basic_v2ray_uuid_%d", node);
-	skipd(k, v);
-	json_object_object_add(outbound_users_item, "id", json_object_new_string(v));
-	if(type == TYPE_VMESS){
+	if(type == TYPE_VMESS || type == TYPE_VLESS){
 		memset(v, 0, sizeof(v));
 		memset(k, 0, sizeof(k));
-		snprintf(k, sizeof(k), "ssconf_basic_v2ray_alterid_%d", node);
+		snprintf(k, sizeof(k), "ssconf_basic_server_%d", node);
 		skipd(k, v);
-		json_object_object_add(outbound_users_item, "alterId", json_object_new_int(atoi(v)));
+		json_object_object_add(outbound_vnext_item, "address", json_object_new_string(v));
 		memset(v, 0, sizeof(v));
 		memset(k, 0, sizeof(k));
-		snprintf(k, sizeof(k), "ssconf_basic_v2ray_security_%d", node);
+		snprintf(k, sizeof(k), "ssconf_basic_port_%d", node);
 		skipd(k, v);
-		json_object_object_add(outbound_users_item, "security", json_object_new_string(v));
-	} else if (type == TYPE_VLESS){
-		//memset(v, 0, sizeof(v));
-		//skipd("ss_basic_v2ray_encryption", v);
-		json_object_object_add(outbound_users_item, "encryption", json_object_new_string("none"));
-		if(tls == TLS_XTLS){
+		json_object_object_add(outbound_vnext_item, "port", json_object_new_int(atoi(v)));
+		memset(v, 0, sizeof(v));
+		memset(k, 0, sizeof(k));
+		snprintf(k, sizeof(k), "ssconf_basic_v2ray_uuid_%d", node);
+		skipd(k, v);
+		json_object_object_add(outbound_users_item, "id", json_object_new_string(v));
+		if(type == TYPE_VMESS){
+			memset(v, 0, sizeof(v));
+			memset(k, 0, sizeof(k));
+			snprintf(k, sizeof(k), "ssconf_basic_v2ray_alterid_%d", node);
+			skipd(k, v);
+			json_object_object_add(outbound_users_item, "alterId", json_object_new_int(atoi(v)));
+			memset(v, 0, sizeof(v));
+			memset(k, 0, sizeof(k));
+			snprintf(k, sizeof(k), "ssconf_basic_v2ray_security_%d", node);
+			skipd(k, v);
+			json_object_object_add(outbound_users_item, "security", json_object_new_string(v));
+		} else if (type == TYPE_VLESS){
+			//memset(v, 0, sizeof(v));
+			//skipd("ss_basic_v2ray_encryption", v);
+			json_object_object_add(outbound_users_item, "encryption", json_object_new_string("none"));
+			if(tls == TLS_XTLS){
+				memset(v, 0, sizeof(v));
+				memset(k, 0, sizeof(k));
+				snprintf(k, sizeof(k), "ssconf_basic_v2ray_network_flow_%d", node);
+				skipd(k, v);
+				json_object_object_add(outbound_users_item, "flow", json_object_new_string(v));
+			}
+		}
+		json_object_array_add(outbound_users_array, outbound_users_item);
+		json_object_object_add(outbound_vnext_item, "users", outbound_users_array);
+		json_object_array_add(outbound_vnext_array, outbound_vnext_item);
+		json_object_object_add(outbound_settings_item, "vnext", outbound_vnext_array);
+	}else if (type == TYPE_SS || type == TYPE_TROJAN){
+		memset(v, 0, sizeof(v));
+		memset(k, 0, sizeof(k));
+		snprintf(k, sizeof(k), "ssconf_basic_server_%d", node);
+		skipd(k, v);
+		json_object_object_add(outbound_servers_item, "address", json_object_new_string(v));
+		memset(v, 0, sizeof(v));
+		memset(k, 0, sizeof(k));
+		snprintf(k, sizeof(k), "ssconf_basic_port_%d", node);
+		skipd(k, v);
+		json_object_object_add(outbound_servers_item, "port", json_object_new_int(atoi(v)));
+		memset(v, 0, sizeof(v));
+		memset(k, 0, sizeof(k));
+		snprintf(k, sizeof(k), "ssconf_basic_password_%d", node);
+		skipd(k, v);
+		json_object_object_add(outbound_servers_item, "password", json_object_new_string(v));
+		if (type == TYPE_SS){
+			memset(v, 0, sizeof(v));
+			memset(k, 0, sizeof(k));
+			snprintf(k, sizeof(k), "ssconf_basic_method_%d", node);
+			skipd(k, v);
+			json_object_object_add(outbound_servers_item, "method", json_object_new_string(v));
+		}else if(tls == TLS_XTLS){
 			memset(v, 0, sizeof(v));
 			memset(k, 0, sizeof(k));
 			snprintf(k, sizeof(k), "ssconf_basic_v2ray_network_flow_%d", node);
 			skipd(k, v);
-			json_object_object_add(outbound_users_item, "flow", json_object_new_string(v));
+			json_object_object_add(outbound_servers_item, "flow", json_object_new_string(v));
 		}
+		json_object_array_add(outbound_servers_array, outbound_servers_item);
+		json_object_object_add(outbound_settings_item, "servers", outbound_servers_array);
+	}else if (type == TYPE_SOCKS || type == TYPE_HTTP){
+		memset(v, 0, sizeof(v));
+		memset(k, 0, sizeof(k));
+		snprintf(k, sizeof(k), "ssconf_basic_server_%d", node);
+		skipd(k, v);
+		json_object_object_add(outbound_servers_item, "address", json_object_new_string(v));
+		memset(v, 0, sizeof(v));
+		memset(k, 0, sizeof(k));
+		snprintf(k, sizeof(k), "ssconf_basic_port_%d", node);
+		skipd(k, v);
+		json_object_object_add(outbound_servers_item, "port", json_object_new_int(atoi(v)));
+		memset(v, 0, sizeof(v));
+		memset(k, 0, sizeof(k));
+		snprintf(k, sizeof(k), "ssconf_basic_auth_%d", node);
+		skipd(k, v);
+		if(atoi(v) == 1){
+			memset(v, 0, sizeof(v));
+			memset(k, 0, sizeof(k));
+			snprintf(k, sizeof(k), "ssconf_basic_username_%d", node);
+			skipd(k, v);
+			json_object_object_add(outbound_users_item, "user", json_object_new_string(v));
+			memset(v, 0, sizeof(v));
+			memset(k, 0, sizeof(k));
+			snprintf(k, sizeof(k), "ssconf_basic_password_%d", node);
+			skipd(k, v);
+			json_object_object_add(outbound_users_item, "pass", json_object_new_string(v));
+			json_object_object_add(outbound_users_item, "users", json_object_new_string("none"));
+			json_object_object_add(outbound_servers_item, "users", outbound_users_item);
+		}
+
+		json_object_array_add(outbound_servers_array, outbound_servers_item);
+		json_object_object_add(outbound_settings_item, "servers", outbound_servers_array);
 	}
-	json_object_array_add(outbound_users_array, outbound_users_item);
-	json_object_object_add(outbound_vnext_item, "users", outbound_users_array);
-	json_object_array_add(outbound_vnext_array, outbound_vnext_item);
-	json_object_object_add(outbound_settings_item, "vnext", outbound_vnext_array);
 	json_object_object_add(outbound_item, "settings", outbound_settings_item);
 	memset(v, 0, sizeof(v));
 	memset(k, 0, sizeof(k));
@@ -788,6 +870,8 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 	json_object_put(outbound_streamSettings);
 	json_object_put(outbound_users_item);
 	json_object_put(outbound_users_array);
+	json_object_put(outbound_servers_item);
+	json_object_put(outbound_servers_array);
 	json_object_put(outbound_vnext_item);
 	json_object_put(outbound_vnext_array);
 	json_object_put(outbound_settings_item);
