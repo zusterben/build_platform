@@ -371,33 +371,15 @@ int gen_ss_conf(int type, int netflix, char *path, int local_port)
 		json_object_object_add(ssjson, "method", json_object_new_string(v));
 		memset(v, 0, sizeof(v));
 		memset(k, 0, sizeof(k));
-		snprintf(k, sizeof(k), "ssconf_basic_ss_v2ray_%d", node);
+		snprintf(k, sizeof(k), "ssconf_basic_ss_obfs_%d", node);
 		skipd(k, v);
-		if(atoi(v) == 1){
-			json_object_object_add(ssjson, "plugin", json_object_new_string("v2ray-plugin"));
+		if(strcmp(v, "none")){
+			json_object_object_add(ssjson, "plugin", json_object_new_string(v));
 			memset(v, 0, sizeof(v));
 			memset(k, 0, sizeof(k));
-			snprintf(k, sizeof(k), "ssconf_basic_ss_v2ray_opts_%d", node);
+			snprintf(k, sizeof(k), "ssconf_basic_ss_obfs_host_%d", node);
 			skipd(k, v);
-			json_object_object_add(ssjson, "plugin_opts", json_object_new_string(v));
-		}else{
-			memset(v, 0, sizeof(v));
-			memset(k, 0, sizeof(k));
-			snprintf(k, sizeof(k), "ssconf_basic_ss_obfs_%d", node);
-			skipd(k, v);
-			if(strlen(v) > 1){
-				char tmp[99];
-				memset(tmp, 0, sizeof(tmp));
-				snprintf(tmp, sizeof(tmp), "obfs=%s", v);
-				memset(v, 0, sizeof(v));
-				memset(k, 0, sizeof(k));
-				snprintf(k, sizeof(k), "ssconf_basic_ss_obfs_host_%d", node);
-				skipd(k, v);
-				memset(k, 0, sizeof(k));
-				snprintf(k, sizeof(k), "%s;obfs-host=%s", tmp, v);
-				json_object_object_add(ssjson, "plugin", json_object_new_string("obfs-local"));
-				json_object_object_add(ssjson, "plugin-opts", json_object_new_string(k));
-			}
+			json_object_object_add(ssjson, "plugin-opts", json_object_new_string(v));
 		}
 		//if(access("/proc/sys/net/ipv4/tcp_fastopen",F_OK) == 0)
 		//	json_object_object_add(ssjson, "fast_open", json_object_new_boolean(1));
@@ -651,7 +633,7 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 		if (type == TYPE_SS){
 			memset(v, 0, sizeof(v));
 			memset(k, 0, sizeof(k));
-			snprintf(k, sizeof(k), "ssconf_basic_method_%d", node);
+			snprintf(k, sizeof(k), "ssconf_basic_v2ray_ss_method_%d", node);
 			skipd(k, v);
 			json_object_object_add(outbound_servers_item, "method", json_object_new_string(v));
 		}else if(tls == TLS_XTLS){
@@ -755,7 +737,7 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 	}else if(transport == NET_KCP){
 		//memset(v, 0, sizeof(v));
 		//skipd("ss_basic_v2ray_headtype_kcp_mtu", v);
-		json_object_object_add(outbound_kcpSettings, "mtu", json_object_new_int(1500));
+		json_object_object_add(outbound_kcpSettings, "mtu", json_object_new_int(1350));
 		json_object_object_add(outbound_kcpSettings, "tti", json_object_new_int(50));
 		json_object_object_add(outbound_kcpSettings, "uplinkCapacity", json_object_new_int(12));
 		json_object_object_add(outbound_kcpSettings, "downlinkCapacity", json_object_new_int(100));
