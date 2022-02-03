@@ -1,6 +1,6 @@
 /*
 *
-* Copyright (C) 2020-2021 zusterben
+* Copyright (C) 2020-2022 zusterben
 *
 * This is free software, licensed under the GNU General Public License v3.
 *
@@ -23,6 +23,39 @@
 #include <errno.h>  // errno
 #include <unistd.h>
 #include <json.h>
+
+enum {
+	APP_SS = 0,
+	APP_SSR,
+	APP_V2RAY,
+	APP_TROJAN
+};
+
+enum {
+	TYPE_ERR = -1,
+    TYPE_VMESS = 0,
+    TYPE_VLESS,
+	TYPE_TROJAN,
+	TYPE_SS,
+	TYPE_SOCKS,
+	TYPE_HTTP
+};
+
+enum {
+	TLS_ERR = -1,
+    TLS_TLS = 0,
+    TLS_XTLS
+};
+
+enum {
+	NET_ERR = -1,
+    NET_TCP = 0,
+    NET_KCP,
+    NET_WS,
+    NET_H2,
+    NET_QUIC,
+    NET_GRPC
+};
 
 typedef enum {
     S2ISUCCESS = 0,
@@ -73,49 +106,25 @@ typedef struct _dbclient {
     int buf_pos;
 } dbclient;
 
-enum {
-	TYPE_ERR = -1,
-    TYPE_VMESS = 0,
-    TYPE_VLESS,
-	TYPE_TROJAN,
-	TYPE_SS,
-	TYPE_SOCKS,
-	TYPE_HTTP
-};
-enum {
-	TLS_ERR = -1,
-    TLS_TLS = 0,
-    TLS_XTLS
-};
-enum {
-	NET_ERR = -1,
-    NET_TCP = 0,
-    NET_KCP,
-    NET_WS,
-    NET_H2,
-    NET_QUIC,
-    NET_GRPC
-};
-
 dbclient* gclient;
 
 static STR2INT_ERROR str2int(int *i, char *s, int base) {
-  char *end;
-  long  l;
-  errno = 0;
-  l = strtol(s, &end, base);
+	char *end;
+	long  l;
+	errno = 0;
+	  l = strtol(s, &end, base);
 
-  if ((errno == ERANGE && l == LONG_MAX) || l > INT_MAX) {
-    return S2IOVERFLOW;
-  }
-  if ((errno == ERANGE && l == LONG_MIN) || l < INT_MIN) {
-    return S2IUNDERFLOW;
-  }
-  if (*s == '\0' || *end != '\0') {
-    return S2IINCONVERTIBLE;
-  }
-  *i = l;
-  return S2ISUCCESS;
+	if ((errno == ERANGE && l == LONG_MAX) || l > INT_MAX) {
+		return S2IOVERFLOW;
+	  }
+	if ((errno == ERANGE && l == LONG_MIN) || l < INT_MIN) {
+	return S2IUNDERFLOW;
+	}
+	if (*s == '\0' || *end != '\0') {
+	return S2IINCONVERTIBLE;
+	}
+	*i = l;
+	return S2ISUCCESS;
 }
 static int create_client_fd(char* sock_path) {
     int len, remote_fd;
@@ -325,22 +334,26 @@ static int skipd(char *name, char *val)
 	return 0;
 }
 
-int gen_ss_conf(int type, int netflix, char *path, int local_port, int socks, char *proto)
+int gen_ss_conf(int type, int node, char *path, int local_port, int socks, char *proto)
 {
+	FILE *fp;
 	char k[99], v[9999];
-	int node, kcp;
+	int kcp;
+	int reuse_port = 1;
 	struct json_object *ssjson = NULL;
 	ssjson = json_object_new_object();
-	FILE *fp;
-	memset(v, 0, sizeof(v));
-	skipd("ssconf_basic_node", v);
-	node = atoi(v);
 	memset(v, 0, sizeof(v));
 	memset(k, 0, sizeof(k));
 	snprintf(k, sizeof(k), "ssconf_basic_use_kcp_%d", node);
 	skipd(k, v);
 	kcp = atoi(v);
-	if(type == 0){
+	memset(v, 0, sizeof(v));
+	memset(k, 0, sizeof(k));
+	snprintf(k, sizeof(k), "softcenter_arch");
+	skipd(k, v);
+	if(*v && !strcmp(v, "armv7l"))
+		reuse_port = 0;
+	if(type == APP_SS){
 		if(kcp==1){
 			json_object_object_add(ssjson, "server", json_object_new_string("127.0.0.1"));
 			json_object_object_add(ssjson, "server_port", json_object_new_int(1091));
@@ -360,10 +373,10 @@ int gen_ss_conf(int type, int netflix, char *path, int local_port, int socks, ch
 		json_object_object_add(ssjson, "local_port", json_object_new_int(local_port));
 		if(*proto && !strcmp(proto, "tcp,udp"))
 			json_object_object_add(ssjson, "mode", json_object_new_string("tcp_and_udp"));
-		else{
-			snprintf(k, sizeof(k), "%s_only", proto);
-			json_object_object_add(ssjson, "mode", json_object_new_string(k));
-		}
+		else if(*proto && !strcmp(proto, "udp"))
+			json_object_object_add(ssjson, "mode", json_object_new_string("udp_only"));
+		else
+			json_object_object_add(ssjson, "mode", json_object_new_string("tcp_only"));
 		memset(v, 0, sizeof(v));
 		memset(k, 0, sizeof(k));
 		snprintf(k, sizeof(k), "ssconf_basic_password_%d", node);
@@ -379,7 +392,7 @@ int gen_ss_conf(int type, int netflix, char *path, int local_port, int socks, ch
 		memset(k, 0, sizeof(k));
 		snprintf(k, sizeof(k), "ssconf_basic_ss_obfs_%d", node);
 		skipd(k, v);
-		if(strcmp(v, "none")){
+		if(*v && strcmp(v, "none")){
 			json_object_object_add(ssjson, "plugin", json_object_new_string(v));
 			memset(v, 0, sizeof(v));
 			memset(k, 0, sizeof(k));
@@ -391,7 +404,7 @@ int gen_ss_conf(int type, int netflix, char *path, int local_port, int socks, ch
 		//	json_object_object_add(ssjson, "fast_open", json_object_new_boolean(1));
 		//else
 			json_object_object_add(ssjson, "fast_open", json_object_new_boolean(0));
-		json_object_object_add(ssjson, "reuse_port", json_object_new_boolean(1));
+		json_object_object_add(ssjson, "reuse_port", json_object_new_boolean(reuse_port));
 		if(socks == 3333)
 			json_object_object_add(ssjson, "protocol", json_object_new_string("redir"));
 		else
@@ -416,10 +429,10 @@ int gen_ss_conf(int type, int netflix, char *path, int local_port, int socks, ch
 		json_object_object_add(ssjson, "local_port", json_object_new_int(local_port));
 		if(*proto && !strcmp(proto, "tcp,udp"))
 			json_object_object_add(ssjson, "mode", json_object_new_string("tcp_and_udp"));
-		else{
-			snprintf(k, sizeof(k), "%s_only", proto);
-			json_object_object_add(ssjson, "mode", json_object_new_string(k));
-		}
+		else if(*proto && !strcmp(proto, "udp"))
+			json_object_object_add(ssjson, "mode", json_object_new_string("udp_only"));
+		else
+			json_object_object_add(ssjson, "mode", json_object_new_string("tcp_only"));
 		memset(v, 0, sizeof(v));
 		memset(k, 0, sizeof(k));
 		snprintf(k, sizeof(k), "ssconf_basic_password_%d", node);
@@ -455,7 +468,7 @@ int gen_ss_conf(int type, int netflix, char *path, int local_port, int socks, ch
 		//	json_object_object_add(ssjson, "fast_open", json_object_new_boolean(1));
 		//else
 			json_object_object_add(ssjson, "fast_open", json_object_new_boolean(0));
-		json_object_object_add(ssjson, "reuse_port", json_object_new_boolean(1));
+		json_object_object_add(ssjson, "reuse_port", json_object_new_boolean(reuse_port));
 	}
 	if((fp = fopen(path, "w"))){
 		fprintf(fp, "%s\n", json_object_to_json_string(ssjson));
@@ -465,10 +478,10 @@ int gen_ss_conf(int type, int netflix, char *path, int local_port, int socks, ch
 	return 0;
 }
 
-int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_port, char *proto)
+int gen_xray_conf(int type, int node, char *path, int local_port, int socks_port, char *proto)
 {
 	char k[99], v[9999];
-	int tls, transport, node;
+	int tls, transport;
 	FILE *fp;
 	struct json_object *xrayjson = NULL;
 	xrayjson = json_object_new_object();
@@ -504,9 +517,6 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 	struct json_object *outbound_quicSettings_header = json_object_new_object();
 	struct json_object *outbound_grpcSettings = json_object_new_object();
 	struct json_object *mux = json_object_new_object();
-	memset(v, 0, sizeof(v));
-	skipd("ssconf_basic_node", v);
-	node = atoi(v);
 
 	memset(v, 0, sizeof(v));
 	memset(k, 0, sizeof(k));
@@ -527,7 +537,6 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 	}else
 		type = NET_ERR;
 
-
 	memset(v, 0, sizeof(v));
 	memset(k, 0, sizeof(k));
 	snprintf(k, sizeof(k), "ssconf_basic_v2ray_network_security_%d", node);
@@ -544,7 +553,7 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 	skipd(k, v);
 	if(!strcmp(v, "tcp"))
 		transport = NET_TCP;
-	else if(!strcmp(v, "kcp"))
+	else if(!strcmp(v, "mkcp"))
 		transport = NET_KCP;
 	else if(!strcmp(v, "ws"))
 		transport = NET_WS;
@@ -653,6 +662,12 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 			snprintf(k, sizeof(k), "ssconf_basic_v2ray_ss_method_%d", node);
 			skipd(k, v);
 			json_object_object_add(outbound_servers_item, "method", json_object_new_string(v));
+			memset(v, 0, sizeof(v));
+			memset(k, 0, sizeof(k));
+			snprintf(k, sizeof(k), "ssconf_basic_v2ray_ss_ivCheck_%d", node);
+			skipd(k, v);
+			if(*v)
+				json_object_object_add(outbound_servers_item, "ivCheck", json_object_new_boolean(atoi(v)));
 		}else if(tls == TLS_XTLS){
 			memset(v, 0, sizeof(v));
 			memset(k, 0, sizeof(k));
@@ -799,6 +814,18 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 		skipd(k, v);
 		if(strlen(v))
 			json_object_object_add(outbound_httpSettings, "host", json_object_new_string(v));
+		memset(v, 0, sizeof(v));
+		memset(k, 0, sizeof(k));
+		snprintf(k, sizeof(k), "ssconf_basic_v2ray_read_idle_timeout_%d", node);
+		skipd(k, v);
+		if(strlen(v))
+			json_object_object_add(outbound_httpSettings, "read_idle_timeout", json_object_new_int(atoi(v)));
+		memset(v, 0, sizeof(v));
+		memset(k, 0, sizeof(k));
+		snprintf(k, sizeof(k), "ssconf_basic_v2ray_health_check_timeout_%d", node);
+		skipd(k, v);
+		if(strlen(v))
+			json_object_object_add(outbound_httpSettings, "health_check_timeout", json_object_new_int(atoi(v)));
 		json_object_object_add(outbound_streamSettings, "httpSettings", outbound_httpSettings);
 	}else if(transport == NET_QUIC){
 		memset(v, 0, sizeof(v));
@@ -829,6 +856,30 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 		snprintf(k, sizeof(k), "ssconf_basic_v2ray_mux_enable_%d", node);
 		skipd(k, v);
 		json_object_object_add(outbound_grpcSettings, "multiMode", json_object_new_boolean(atoi(v)));
+		memset(v, 0, sizeof(v));
+		memset(k, 0, sizeof(k));
+		snprintf(k, sizeof(k), "ssconf_basic_v2ray_idle_timeout_%d", node);
+		skipd(k, v);
+		if(strlen(v))
+			json_object_object_add(outbound_grpcSettings, "idle_timeout", json_object_new_int(atoi(v)));
+		memset(v, 0, sizeof(v));
+		memset(k, 0, sizeof(k));
+		snprintf(k, sizeof(k), "ssconf_basic_v2ray_health_check_timeout_%d", node);
+		skipd(k, v);
+		if(strlen(v))
+			json_object_object_add(outbound_grpcSettings, "health_check_timeout", json_object_new_int(atoi(v)));
+		memset(v, 0, sizeof(v));
+		memset(k, 0, sizeof(k));
+		snprintf(k, sizeof(k), "ssconf_basic_v2ray_permit_without_stream_%d", node);
+		skipd(k, v);
+		if(strlen(v))
+			json_object_object_add(outbound_grpcSettings, "permit_without_stream", json_object_new_boolean(atoi(v) == 1));
+		memset(v, 0, sizeof(v));
+		memset(k, 0, sizeof(k));
+		snprintf(k, sizeof(k), "ssconf_basic_v2ray_initial_windows_size_%d", node);
+		skipd(k, v);
+		if(strlen(v))
+			json_object_object_add(outbound_grpcSettings, "initial_windows_size", json_object_new_int(atoi(v)));
 		json_object_object_add(outbound_streamSettings, "grpcSettings", outbound_quicSettings);
 	}
 	json_object_object_add(outbound_item, "streamSettings", outbound_streamSettings);
@@ -885,11 +936,12 @@ int gen_xray_conf(int type, int netflix, char *path, int local_port, int socks_p
 	json_object_put(xrayjson);
 	return 0;
 }
-
-int gen_trojan_conf(int type, int netflix, char *path, int local_port, int socks_port, char *proto)
+#if 0
+int gen_trojan_conf(int type, int node, char *path, int local_port, int socks_port, char *proto)
 {
 	char k[99], v[9999];
-	int tls, transport, node;
+	int tls, transport;
+	int reuse_port = 1;
 	FILE *fp;
 	struct json_object *trojanjson = NULL;
 	trojanjson = json_object_new_object();
@@ -898,9 +950,13 @@ int gen_trojan_conf(int type, int netflix, char *path, int local_port, int socks
 	struct json_object *alpn = json_object_new_array();
 	struct json_object *mux = json_object_new_object();
 	struct json_object *tcp = json_object_new_object();
+
 	memset(v, 0, sizeof(v));
-	skipd("ssconf_basic_node", v);
-	node = atoi(v);
+	memset(k, 0, sizeof(k));
+	snprintf(k, sizeof(k), "softcenter_arch");
+	skipd(k, v);
+	if(*v && !strcmp(v, "armv7l"))
+		reuse_port = 0;
 	json_object_object_add(trojanjson, "log_level", json_object_new_int(3));
 	if(!strcmp(proto, "nat") || !strcmp(proto, "tcp"))
 		json_object_object_add(trojanjson, "run_type", json_object_new_string("nat"));
@@ -983,7 +1039,7 @@ int gen_trojan_conf(int type, int netflix, char *path, int local_port, int socks
 	}
 	json_object_object_add(tcp, "no_delay", json_object_new_boolean(1));
 	json_object_object_add(tcp, "keep_alive", json_object_new_boolean(1));
-	json_object_object_add(tcp, "reuse_port", json_object_new_boolean(1));
+	json_object_object_add(tcp, "reuse_port", json_object_new_boolean(reuse_port));
 	//if(access("/proc/sys/net/ipv4/tcp_fastopen",F_OK) == 0)
 	//	json_object_object_add(tcp, "fast_open", json_object_new_boolean(1));
 	//else
@@ -1002,7 +1058,7 @@ int gen_trojan_conf(int type, int netflix, char *path, int local_port, int socks
 	json_object_put(trojanjson);
 	return 0;
 }
-
+#endif
 //gen_conf $type $conf_file $local_port  $socks_port $proto
 int main(int argc, char **argv) {
 	if (argc != 6 || atoi(argv[3]) < 1 || atoi(argv[4]) < 1){
@@ -1018,19 +1074,23 @@ int main(int argc, char **argv) {
 	memset(v, 0, sizeof(v));
 	if(skipd("ssconf_basic_node", v) != 0)
 		return 1;
+	node = atoi(v);
 	switch(type){
-	case 0://ss
-		gen_ss_conf(0, node, argv[2], port, socks, argv[5]);
+	case APP_SS://ss
+		gen_ss_conf(APP_SS, node, argv[2], port, socks, argv[5]);
 		break;
-	case 1://ssr
-		gen_ss_conf(1, node, argv[2], port, socks, argv[5]);
+	case APP_SSR://ssr
+		gen_ss_conf(APP_SSR, node, argv[2], port, socks, argv[5]);
 		break;
-	case 2://v2ray
-		gen_xray_conf(2, node, argv[2], port, socks, argv[5]);
+	case APP_TROJAN:
+	case APP_V2RAY://v2ray
+		gen_xray_conf(APP_V2RAY, node, argv[2], port, socks, argv[5]);
 		break;
-	case 3://trojan
-		gen_trojan_conf(3, node, argv[2], port, socks, argv[5]);
+#if 0
+	case APP_TROJAN://trojan
+		gen_trojan_conf(APP_TROJAN, node, argv[2], port, socks, argv[5]);
 		break;
+#endif
 	default:
 		return 1;
 	}
