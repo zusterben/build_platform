@@ -28,7 +28,8 @@ enum {
 	APP_SS = 0,
 	APP_SSR,
 	APP_V2RAY,
-	APP_TROJAN
+	APP_TROJAN,
+	APP_HYSTERIA
 };
 
 enum {
@@ -1059,6 +1060,140 @@ int gen_trojan_conf(int type, int node, char *path, int local_port, int socks_po
 	return 0;
 }
 #endif
+
+int get_hysteria_conf(int type, int node, char *path, int local_port, int socks_port, char *proto)
+{
+	char k[99], v[9999];
+	char tmp[512];
+	int tls, transport;
+	FILE *fp;
+	struct json_object *rootjson = NULL;
+	rootjson = json_object_new_object();
+	struct json_object *socks5 = json_object_new_array();
+	struct json_object *tproxy_tcp = json_object_new_array();
+	struct json_object *tproxy_udp = json_object_new_array();
+
+	memset(v, 0, sizeof(v));
+	memset(k, 0, sizeof(k));
+	snprintf(k, sizeof(k), "ssconf_basic_server_%d", node);
+	skipd(k, v);
+	if(strstr(v, ":")){//ipv6
+		snprintf(tmp, sizeof(tmp), "[%s]", v);
+	}
+	memset(v, 0, sizeof(v));
+	memset(k, 0, sizeof(k));
+	snprintf(k, sizeof(k), "ssconf_basic_port_%d", node);
+	skipd(k, v);
+	snprintf(tmp, sizeof(tmp), "%s:%s", tmp, v);
+	json_object_object_add(rootjson, "server", json_object_new_string(tmp));
+	memset(v, 0, sizeof(v));
+	memset(k, 0, sizeof(k));
+	snprintf(k, sizeof(k), "ssconf_basic_hysteria_protocol_%d", node);
+	skipd(k, v);
+	if(*v)
+		json_object_object_add(rootjson, "protocol", json_object_new_string(v));
+	else
+		json_object_object_add(rootjson, "protocol", json_object_new_string("udp"));
+	memset(v, 0, sizeof(v));
+	memset(k, 0, sizeof(k));
+	snprintf(k, sizeof(k), "ssconf_basic_hysteria_obfs_%d", node);
+	skipd(k, v);
+	json_object_object_add(rootjson, "obfs", json_object_new_string(v));
+	memset(v, 0, sizeof(v));
+	memset(k, 0, sizeof(k));
+	snprintf(k, sizeof(k), "ssconf_basic_hysteria_auth_type_%d", node);
+	skipd(k, v);
+	snprintf(tmp, sizeof(tmp), "%s", v);
+	memset(v, 0, sizeof(v));
+	memset(k, 0, sizeof(k));
+	snprintf(k, sizeof(k), "ssconf_basic_password_%d", node);
+	skipd(k, v);
+	if(!strcmp(tmp, "base64"))
+		json_object_object_add(rootjson, "auth", json_object_new_string(v));
+	else if(!strcmp(tmp, "string"))
+		json_object_object_add(rootjson, "auth_str", json_object_new_string(v));
+	memset(v, 0, sizeof(v));
+	memset(k, 0, sizeof(k));
+	snprintf(k, sizeof(k), "ssconf_basic_hysteria_alpn_%d", node);
+	skipd(k, v);
+	if(*v)
+		json_object_object_add(rootjson, "alpn", json_object_new_string(v));
+	memset(v, 0, sizeof(v));
+	memset(k, 0, sizeof(k));
+	snprintf(k, sizeof(k), "ssconf_basic_hysteria_tls_serverName_%d", node);
+	skipd(k, v);
+	json_object_object_add(rootjson, "server_name", json_object_new_string(v));
+	memset(v, 0, sizeof(v));
+	memset(k, 0, sizeof(k));
+	snprintf(k, sizeof(k), "ssconf_basic_hysteria_tls_allowInsecure_%d", node);
+	skipd(k, v);
+	if(!strcmp(v, "1"))
+		json_object_object_add(rootjson, "insecure", json_object_new_boolean(1));
+	else
+		json_object_object_add(rootjson, "insecure", json_object_new_boolean(0));
+	memset(v, 0, sizeof(v));
+	memset(k, 0, sizeof(k));
+	snprintf(k, sizeof(k), "ssconf_basic_hysteria_up_mbps_%d", node);
+	skipd(k, v);
+	json_object_object_add(rootjson, "up_mbps", json_object_new_int(atoi(v) > 0 ? : 10));
+	memset(v, 0, sizeof(v));
+	memset(k, 0, sizeof(k));
+	snprintf(k, sizeof(k), "ssconf_basic_hysteria_down_mbps_%d", node);
+	skipd(k, v);
+	json_object_object_add(rootjson, "down_mbps", json_object_new_int(atoi(v) > 0 ? : 50));
+	json_object_object_add(rootjson, "retry", json_object_new_int(-1));
+	json_object_object_add(rootjson, "retry_interval", json_object_new_int(5));
+	memset(v, 0, sizeof(v));
+	memset(k, 0, sizeof(k));
+	snprintf(k, sizeof(k), "ssconf_basic_hysteria_recv_window_conn_%d", node);
+	skipd(k, v);
+	if(*v)
+		json_object_object_add(rootjson, "recv_window_conn", json_object_new_int(atoi(v)));
+	memset(v, 0, sizeof(v));
+	memset(k, 0, sizeof(k));
+	snprintf(k, sizeof(k), "ssconf_basic_hysteria_recv_window_%d", node);
+	skipd(k, v);
+	if(*v)
+		json_object_object_add(rootjson, "recv_window", json_object_new_int(atoi(v)));
+	memset(v, 0, sizeof(v));
+	memset(k, 0, sizeof(k));
+	snprintf(k, sizeof(k), "ssconf_basic_hysteria_disable_mtu_discovery_%d", node);
+	skipd(k, v);
+	if(!strcmp(v, "1"))
+		json_object_object_add(rootjson, "disable_mtu_discovery", json_object_new_boolean(1));
+	else
+		json_object_object_add(rootjson, "disable_mtu_discovery", json_object_new_boolean(0));
+	if(socks_port){
+		snprintf(tmp, sizeof(tmp), "0.0.0.0:%d", socks_port);
+		json_object_object_add(socks5, "listen", json_object_new_string(tmp));
+		json_object_object_add(socks5, "timeout", json_object_new_int(300));
+		json_object_object_add(socks5, "disable_udp", json_object_new_boolean(0));
+		json_object_object_add(rootjson, "socks5", socks5);
+	}
+	if(strstr(proto, "tcp")){
+		snprintf(tmp, sizeof(tmp), "0.0.0.0:%d", local_port);
+		json_object_object_add(tproxy_tcp, "listen", json_object_new_string(tmp));
+		json_object_object_add(tproxy_tcp, "timeout", json_object_new_int(300));
+		json_object_object_add(rootjson, "tproxy_tcp", tproxy_tcp);
+	}
+	if(strstr(proto, "udp")){
+		snprintf(tmp, sizeof(tmp), "0.0.0.0:%d", local_port);
+		json_object_object_add(tproxy_udp, "listen", json_object_new_string(tmp));
+		json_object_object_add(tproxy_udp, "timeout", json_object_new_int(60));
+		json_object_object_add(rootjson, "tproxy_udp", tproxy_udp);
+	}
+
+	if((fp = fopen(path, "w"))){
+		fprintf(fp, "%s\n", json_object_to_json_string(rootjson));
+		fclose(fp);
+	}
+	json_object_put(tproxy_udp);
+	json_object_put(tproxy_tcp);
+	json_object_put(socks5);
+	json_object_put(rootjson);
+	return 0;
+}
+
 //gen_conf $type $conf_file $local_port  $socks_port $proto
 int main(int argc, char **argv) {
 	if (argc != 6 || atoi(argv[3]) < 1 || atoi(argv[4]) < 1){
@@ -1091,6 +1226,9 @@ int main(int argc, char **argv) {
 		gen_trojan_conf(APP_TROJAN, node, argv[2], port, socks, argv[5]);
 		break;
 #endif
+	case APP_HYSTERIA:
+		get_hysteria_conf(APP_HYSTERIA, node, argv[2], port, socks, argv[5]);
+		break;
 	default:
 		return 1;
 	}
